@@ -34,7 +34,7 @@ This shows promising ways to aid users and applications in ways currently not po
 
 ## Non-goals
 
-- **Open-ended text generation or chat:** Generating prose, summaries, or conversational replies is out of scope and served by generative APIs like the [Prompt API](https://github.com/webmachinelearning/prompt-api) (`LanguageModel`) and Writing Assistance APIs (`Summarizer`, `Writer`, `Rewriter`).
+- **Open-ended text generation or chat:** Generating prose, summaries, or conversational replies is out of scope and served by generative APIs like the [Prompt API](https://github.com/webmachinelearning/prompt-api) (`LanguageModel`) and [Summarizer API](https://github.com/webmachinelearning/writing-assistance-apis#summarizer-api) (`Summarizer`).
 - **Complex analytical reasoning:** Providing chain-of-thought reasoning or other means for solving complex analytical problems is out of scope and better suited to larger generative models.
 - **Replacing application policy:** Applications remain responsible for weighing error costs, deciding whether to act or defer action, and respecting user autonomy.
 - **Executing arbitrary custom model weights:** Running custom neural network graphs directly in the browser is addressed by lower-level APIs like WebNN and WebGPU.
@@ -49,21 +49,21 @@ Early developer prototypes and community explorations indicate strong demand for
 
 Keeping decisions local, fast, and probabilistic helps solve several problems end-users face on the web today:
 
-### Use case 1: Instant Intent Routing & Command Discovery
+### Use case 1: Natural Language to Structured Filters & Semantic Search
+
+Users searching trip booking or hotel reservation sites, product catalogs, or local-first apps often express multi-part goals in everyday language (e.g., *"dog-friendly hotel downtown that won't break the bank"* or *"under $50 waterproof jacket"*). Rather than forcing users to manually toggle dozens of checkboxes and dropdowns or sending private queries to a remote server, the application can convert natural-language input directly into its predefined filter controls (`binary` toggles, `categorical` options, and `ordinal` price or rating tiers) and re-rank candidate items on the user's device.
+
+### Use case 2: Instant Intent Routing & Command Discovery
 
 Users interacting with support portals, settings pages, or application command palettes often struggle to locate the right workflow or tool unless they know the exact terminology the site expects. Sites can offer a means to connect user goals in everyday language (e.g., *"let my coworkers view this file"*) to the right action or resource, while keeping their private input on-device.
 
-### Use case 2: Real-Time Writing Feedback & Pre-Submission Checks
+### Use case 3: Real-Time Writing Feedback & Pre-Submission Checks
 
 Users filling out forms, filing bug reports, or posting in community forums frequently discover only after submitting (or waiting on a remote check) that their draft is missing key details, violates community guidelines, or accidentally contains personal contact information (PII). Users benefit from instant, private, on-keystroke feedback while they are still writing.
 
-### Use case 3: Adaptive Interfaces & Accessibility
+### Use case 4: Adaptive Interfaces, Autofill & Accessibility
 
-Users navigating information-dense pages, long articles, or large collections of tabs and products can experience cognitive overload. Evaluating content and available actions locally lets web apps group related items, highlight the most likely next steps for keyboard or switch users, or surface reading aids without sending browsing activity to a remote server.
-
-### Use case 4: Local Search Re-Ranking & Semantic Filtering
-
-Users searching local-first apps, documentation sites, or product catalogs often express multi-part goals in natural language (e.g., *"under $50 waterproof jacket"*). Rather than forcing users to manually toggle dozens of filters or sending private local data to a server, the application can match filters and re-rank candidate items directly on the user's device.
+Users navigating information-dense pages, complex web forms, or large collections of tabs and products can experience cognitive overload. Evaluating page content and DOM context locally lets web apps and browser extensions (such as password managers or form-filling assistants) classify non-standard form fields for accurate autofill, group related items, highlight likely next steps for keyboard or switch users, or surface reading aids without sending browsing activity or page structure to a remote server.
 
 ### Common Decision Tasks
 
@@ -72,7 +72,7 @@ These user scenarios rely on three question types (`binary`, `categorical`, and 
 | Task Pattern | Question Type | Description | Web Examples |
 | :--- | :--- | :--- | :--- |
 | **Verification & Detection** | `binary` | Check whether input satisfies policy rules, meets adequacy criteria, or contains specific risks. | Verifying a draft or AI response meets guidelines; flagging toxicity, spam, or accidental PII; checking if a policy condition is met. |
-| **Classification & Routing** | `categorical` | Assign content to categories, route user intent to workflows or tools, or extract discrete fields. | Routing a request to `billing` or `returns`; selecting a matching page tool or command; extracting structured filter values or topic tags. |
+| **Classification & Routing** | `categorical` | Assign content to categories, route user intent to workflows or tools, or extract discrete fields. | Converting search text into predefined trip or catalog filters; routing a request to `billing` or `returns`; classifying form fields for password or address autofill. |
 | **Scoring & Ranking** | `ordinal` | Rate degree or intensity along an ordered rubric to evaluate or rank items. | Scoring customer tone (`calm` to `angry`) or incident severity (`cosmetic` to `critical`); rating response helpfulness (`1`–`5`); ranking candidate results. |
 
 ## Potential Solution
@@ -84,7 +84,92 @@ We are exploring a three-step workflow on `window.DecisionModel`:
 
 ### How this solution would solve the use cases
 
-#### Use case 1: Instant Intent Routing & Command Discovery
+#### Use case 1: Natural Language to Structured Filters & Semantic Search
+
+A hotel reservation or trip booking site can convert a user's natural-language search into a set of predefined UI filters (`pet_friendly`, `property_type`, and `price_tier`) in a single local pass—applying high-confidence filters automatically and offering suggested filter chips when the query is ambiguous:
+
+```js
+// 1. Define the filter schema for a hotel search UI
+const schema = {
+  context: "Hotel reservation search filter converter.",
+  expectedInputs: [{ type: "text", languages: ["en"] }],
+  questions: [
+    {
+      id: "pet_friendly",
+      type: "binary",
+      prompt: "Does the traveler require pet-friendly accommodations?"
+    },
+    {
+      id: "property_type",
+      type: "categorical",
+      prompt: "Which property type best matches the traveler's request?",
+      options: [
+        { label: "hotel", description: "Standard hotel, resort, or boutique inn" },
+        { label: "rental", description: "Entire apartment, house, or cabin rental" },
+        { label: "hostel", description: "Shared dormitory or budget hostel" },
+        { label: "any", description: "No specific property type mentioned" }
+      ]
+    },
+    {
+      id: "price_tier",
+      type: "ordinal",
+      prompt: "Rate the target price tier from 1 (budget) to 4 (luxury).",
+      options: [
+        { label: "1", description: "Budget or inexpensive stay" },
+        { label: "2", description: "Moderate or mid-range price" },
+        { label: "3", description: "Upscale or premium property" },
+        { label: "4", description: "Luxury or five-star resort" }
+      ]
+    }
+  ]
+};
+
+const status = await DecisionModel.availability(schema);
+
+if (status === "available" || status === "downloadable") {
+  const model = await DecisionModel.create(schema);
+
+  // 2. Evaluate the user's natural-language query in a single local pass
+  const query = document.querySelector("#search-input").value;
+  // e.g., "dog-friendly hotel downtown that won't break the bank"
+  const result = await model.decide(query);
+
+  // 3. Inspect the result object (keyed by question id)
+  // {
+  //   pet_friendly: {
+  //     id: "pet_friendly", label: "true", probability: 0.98, confidence: 0.96,
+  //     probabilities: [{ label: "true", probability: 0.98 }, { label: "false", probability: 0.02 }]
+  //   },
+  //   property_type: {
+  //     id: "property_type", label: "hotel", confidence: 0.92,
+  //     probabilities: [
+  //       { label: "hotel", probability: 0.94 },
+  //       { label: "rental", probability: 0.03 },
+  //       { label: "hostel", probability: 0.01 },
+  //       { label: "any", probability: 0.02 }
+  //     ]
+  //   },
+  //   price_tier: {
+  //     id: "price_tier", label: "1", expectedScore: 1.24, confidence: 0.88,
+  //     probabilities: [...]
+  //   }
+  // }
+
+  // Apply confident filter selections; show suggested filter chips when ambiguous
+  if (result.pet_friendly.confidence > 0.85) {
+    setPetFilter(result.pet_friendly.label === "true");
+  }
+  if (result.property_type.confidence > 0.85) {
+    setPropertyFilter(result.property_type.label, result.price_tier.expectedScore);
+  } else {
+    showSuggestedFilterChips(result.property_type.probabilities);
+  }
+
+  model.destroy();
+}
+```
+
+#### Use case 2: Instant Intent Routing & Command Discovery
 
 An application command palette can match a user's everyday phrasing to available commands without requiring exact keyword matches:
 
@@ -109,88 +194,63 @@ const { command } = await actionMatcher.decide("let my coworkers view this file"
 // command -> { id: "command", label: "share_link", confidence: 0.93, probabilities: [...] }
 ```
 
-#### Use case 2: Real-Time Writing Feedback & Pre-Submission Checks
+#### Use case 3: Real-Time Writing Feedback & Pre-Submission Checks
 
-As a user drafts a support request or issue report, the page can evaluate their draft across multiple questions (`has_repro_steps`, `category`, and `severity`) in a single local pass—offering immediate guidance on missing details and pre-selecting the right help workflow when confidence is high, or showing a picker when ambiguous:
+A bug tracker or forum form can check a user's draft locally as they type, nudging them if reproduction steps are missing or if sensitive credentials were pasted accidentally:
 
 ```js
-// 1. Define the question schema
-const schema = {
-  context: "Customer support and issue submission form.",
-  expectedInputs: [{ type: "text", languages: ["en"] }],
+const draftChecker = await DecisionModel.create({
+  context: "Bug report submission form pre-check",
   questions: [
     {
       id: "has_repro_steps",
       type: "binary",
-      prompt: "Does this draft describe how to reproduce or observe the problem?"
+      prompt: "Does the draft include steps to reproduce the issue?"
     },
     {
-      id: "category",
+      id: "contains_pii",
+      type: "binary",
+      prompt: "Does the draft contain personal contact info, API keys, or passwords?"
+    }
+  ]
+});
+
+const { has_repro_steps, contains_pii } = await draftChecker.decide(draftText);
+if (contains_pii.label === "true" && contains_pii.confidence > 0.8) {
+  showWarning("Please remove personal info or credentials before posting.");
+} else if (has_repro_steps.label === "false" && has_repro_steps.confidence > 0.8) {
+  showHint("Adding reproduction steps will help resolve this issue faster.");
+}
+```
+
+#### Use case 4: Adaptive Interfaces, Autofill & Accessibility
+
+A form assistant or password manager extension can evaluate the text surrounding a non-standard input field locally to determine what credential or data it expects, without sending page DOM structure to a remote server:
+
+```js
+const fieldClassifier = await DecisionModel.create({
+  context: "Form assistant classifying a non-standard input field from surrounding DOM labels",
+  questions: [
+    {
+      id: "field_purpose",
       type: "categorical",
-      prompt: "Which support workflow best helps the user?",
+      prompt: "What type of user credential or data does this input field expect?",
       options: [
-        { label: "bug", description: "Production crash or software defect" },
-        { label: "billing", description: "Invoice, refund, or double-charge issue" },
-        { label: "feature_request", description: "Enhancement request" }
-      ]
-    },
-    {
-      id: "severity",
-      type: "ordinal",
-      prompt: "Rate the reported impact from 1 (minimal) to 5 (critical).",
-      options: [
-        { label: "1", description: "Minimal or cosmetic impact" },
-        { label: "2", description: "Low impact with a workaround" },
-        { label: "3", description: "Moderate impact" },
-        { label: "4", description: "High impact on core functionality" },
-        { label: "5", description: "Critical outage or data loss" }
+        { label: "username", description: "Account email, login ID, or handle" },
+        { label: "current_password", description: "Existing password for signing in" },
+        { label: "new_password", description: "New or updated password being created" },
+        { label: "one_time_code", description: "Two-factor verification or SMS code" },
+        { label: "other", description: "Unrelated input field" }
       ]
     }
   ]
-};
+});
 
-const status = await DecisionModel.availability(schema);
-
-if (status === "available" || status === "downloadable") {
-  const model = await DecisionModel.create(schema);
-
-  // 2. Evaluate the user's draft in a single local pass
-  const input = document.querySelector("#ticket-input").value;
-  const result = await model.decide(input);
-
-  // 3. Inspect the result object (keyed by question id)
-  // {
-  //   has_repro_steps: {
-  //     id: "has_repro_steps", label: "true", probability: 0.97, confidence: 0.94,
-  //     probabilities: [{ label: "true", probability: 0.97 }, { label: "false", probability: 0.03 }]
-  //   },
-  //   category: {
-  //     id: "category", label: "bug", confidence: 0.92,
-  //     probabilities: [
-  //       { label: "bug", probability: 0.94 },
-  //       { label: "billing", probability: 0.03 },
-  //       { label: "feature_request", probability: 0.03 }
-  //     ]
-  //   },
-  //   severity: {
-  //     id: "severity", label: "5", expectedScore: 4.78, confidence: 0.89,
-  //     probabilities: [...]
-  //   }
-  // }
-
-  // Nudge the user if reproduction steps are missing
-  if (result.has_repro_steps.label === "false" && result.has_repro_steps.confidence > 0.8) {
-    showDraftHint("Adding steps to reproduce will help resolve this faster.");
-  }
-
-  // Pre-select the workflow when confident; ask the user when ambiguous
-  if (result.category.confidence > 0.85) {
-    selectWorkflow(result.category.label, result.severity.expectedScore);
-  } else {
-    renderWorkflowPicker(result.category.probabilities);
-  }
-
-  model.destroy();
+const { field_purpose } = await fieldClassifier.decide(
+  'Label: "Enter the 6-digit security code sent to your phone" | Placeholder: "000000"'
+);
+if (field_purpose.label !== "other" && field_purpose.confidence > 0.85) {
+  offerAutofillSuggestion(inputElement, field_purpose.label);
 }
 ```
 
