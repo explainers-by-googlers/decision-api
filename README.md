@@ -293,19 +293,19 @@ How should `DecisionModel` support background workers (`DedicatedWorker`, `Share
 
 ### Brittle Client-Side Heuristics
 
-Regular expressions and keyword rules are fast and local, but fail on nuance, phrasing variations, negation, and multilingual text.
-
-### Generative Prompt API (`LanguageModel`)
-
-Using an on-device generative language model to output JSON or category labels is flexible and well-suited for open-ended writing, chat, and summarization. However, it requires multi-GB models, takes seconds to generate tokens sequentially, consumes significantly more memory and battery when only a discrete choice or score is needed, and is not as directly amenable to producing calibrated option probabilities.
+Keyword rules and regular expressions are fast and local, but break on nuance, phrasing variations, typos, negation, and multilingual input.
 
 ### Server-Side AI APIs
 
-Sending page or user text to cloud models provides access to large frontier models with zero client download size, but introduces privacy trade-offs, network latency that prevents real-time on-keystroke UI, and recurring server costs.
+Cloud AI endpoints are capable and require zero client download size, but introduce hundreds of milliseconds of network round-trip latency (blocking real-time on-keystroke UI), trigger privacy trade-offs by transmitting user drafts or page state off-device, and incur recurring or high-frequency server costs.
 
-### Developer-Supplied Model (WebGPU / WebAssembly / WebNN)
+### Generative Prompt API (`LanguageModel`)
 
-Developers can run models today via libraries like Transformers.js and LiteRT.js, potentially paired with [Cross-Origin Storage](https://github.com/WICG/cross-origin-storage). However, unless sites converge on the exact same model checkpoint and quantization, users still face redundant X00MB downloads, and applications lack browser-managed hardware scheduling.
+Using an on-device generative language model to output structured JSON or category labels is flexible and well-suited for open-ended writing, chat, summarization, and freeform information extraction. However, autoregressively generating tokens via client-side LLMs is orders of magnitude (e.g., 10–50x) heavier and slower than necessary when only a discrete choice or score is needed, consumes significant RAM and battery, and is not as directly amenable to producing calibrated option probabilities.
+
+### Developer-Supplied Models (WebGPU / WebAssembly / WebNN)
+
+Developers can run models today via libraries like Transformers.js and LiteRT.js. However, for most web products, curating training data, evaluating models, integrating runtimes, and bundling multi-megabyte model weights is a prohibitive operational hurdle. Users also face duplicated network and storage costs (potentially mitigated by [Cross-Origin Storage](https://github.com/WICG/cross-origin-storage)), and unmanaged resource contention across origins without browser-managed hardware scheduling.
 
 ### Fixed-Taxonomy API
 
