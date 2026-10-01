@@ -1,185 +1,348 @@
-# Explainer for the TODO API
+# Explainer for the Decision API
 
-**Instructions for the explainer author: Search for "todo" in this repository and update all the
-instances as appropriate. For the instances in `index.bs`, update the repository name, but you can
-leave the rest until you start the specification. Then delete the TODOs and this block of text.**
-
-This proposal is an early design sketch by [TODO: team] to describe the problem below and solicit
-feedback on the proposed solution. It has not been approved to ship in Chrome.
-
-TODO: Fill in the whole explainer template below using https://tag.w3.org/explainers/ as a
-reference. Look for [brackets].
+This proposal is an early design sketch by the Google Chrome Built-in AI Team to describe the problem below and solicit feedback on the proposed solution. It has not been approved to ship in Chrome.
 
 ## Proponents
 
-- [Proponent team 1]
-- [Proponent team 2]
-- [etc.]
+- Google Chrome Built-in AI Team
 
 ## Participate
-- https://github.com/explainers-by-googlers/[your-repository-name]/issues
-- [Discussion forum]
 
-## Table of Contents [if the explainer is longer than one printed page]
-
-<!-- Update this table of contents by running `npx doctoc README.md` -->
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-- [Introduction](#introduction)
-- [Goals](#goals)
-- [Non-goals](#non-goals)
-- [User research](#user-research)
-- [Use cases](#use-cases)
-  - [Use case 1](#use-case-1)
-  - [Use case 2](#use-case-2)
-- [[Potential Solution]](#potential-solution)
-  - [How this solution would solve the use cases](#how-this-solution-would-solve-the-use-cases)
-    - [Use case 1](#use-case-1-1)
-    - [Use case 2](#use-case-2-1)
-- [Detailed design discussion](#detailed-design-discussion)
-  - [[Tricky design choice #1]](#tricky-design-choice-1)
-  - [[Tricky design choice 2]](#tricky-design-choice-2)
-- [Considered alternatives](#considered-alternatives)
-  - [[Alternative 1]](#alternative-1)
-  - [[Alternative 2]](#alternative-2)
-- [Security and Privacy Considerations](#security-and-privacy-considerations)
-- [Stakeholder Feedback / Opposition](#stakeholder-feedback--opposition)
-- [References & acknowledgements](#references--acknowledgements)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+- https://github.com/explainers-by-googlers/decision-api/issues
 
 ## Introduction
 
-[The "executive summary" or "abstract".
-Explain in a few sentences what the goals of the project are,
-and a brief overview of how the solution works.
-This should be no more than 1-2 paragraphs.]
+Web applications often need to make fast, structured decisions about unstructured content: *What is this page or message about? Which action matches the user's intent? Does this input meet site guidelines? Which items are most relevant?* Today, developers must choose between brittle keyword heuristics, cloud AI APIs with privacy and latency trade-offs, text generation models with high resource usage, or custom model integrations that increase user and developer burden.
+
+This living document explores a potential Web API (`window.DecisionModel`) for fast, type-safe, on-device machine learning assistance with decision-making, evaluation, classification, and ranking. Recent machine learning advances have shown that scoring predefined options directly in a single pass unlocks major gains in speed, reliability, and efficiency:
+
+> *"System One models skip text generation. Given state and a bounded question with predefined answer types, they predict probabilities in a single forward pass. This produces fast, low-cost predictions with scores that express the model’s confidence."*
+> — [System One: fast judgments and deliberate checks](https://system-one-explainer.netlify.app/)
+
+This shows promising ways to aid users and applications in ways currently not possible with monolithic generative reasoning, task-specific client-side and server-side models, classic heuristics, and other means of making structured predictions:
+- **Parallel, Single-Pass Execution:** Evaluates an input against multiple independent questions and option sets in a single pass rather than generating text word-by-word.
+- **Guaranteed Type Safety:** Scores the caller's predefined options directly, so it cannot hallucinate invalid labels or syntax errors.
+- **Calibrated Probabilities & Confidence:** Returns calibrated probabilities, expected scores on ordered scales, and a confidence measure so applications can act when confident or ask the user when uncertain.
+- **Small On-Device Footprint:** Compact models (X00M parameters, X00MB quantized) can achieve high accuracy on easy-to-medium structured decision tasks in tens or hundreds of milliseconds across consumer CPUs, GPUs, and NPUs. Larger models can provide additional capabilities to support more complex problems as needed.
 
 ## Goals
 
-[What is the **end-user need** which this project aims to address? Make this section short, and
-elaborate in the Use cases section.]
+- **Responsive, low-friction user experiences:** Help end-users find relevant actions, navigate complex interfaces, and get immediate feedback as they type or interact, without waiting on network round-trips or multi-second text generation.
+- **Privacy-preserving local assistance:** Keep sensitive user drafts, browsing context, and personal queries on the user's device during evaluation, classification, and routing.
+- **Broad device accessibility:** Deliver reliable on-device ML decisions on everyday consumer hardware without draining battery or memory.
+- **Predictable, trustworthy application behavior:** Provide calibrated probabilities and confidence scores over fixed choices, enabling applications to selectively act upon or defer decisions.
 
 ## Non-goals
 
-[If there are "adjacent" goals which may appear to be in scope but aren't,
-enumerate them here. This section may be fleshed out as your design progresses and you encounter necessary technical and other trade-offs.]
+- **Open-ended text generation or chat:** Generating prose, summaries, or conversational replies is out of scope and served by generative APIs like the [Prompt API](https://github.com/webmachinelearning/prompt-api) (`LanguageModel`) and [Summarizer API](https://github.com/webmachinelearning/writing-assistance-apis#summarizer-api) (`Summarizer`).
+- **Complex analytical reasoning:** Providing chain-of-thought reasoning or other means for solving complex analytical problems is out of scope and better suited to larger generative models.
+- **Replacing application policy:** Applications remain responsible for weighing error costs, deciding whether to act or defer action, and respecting user autonomy.
+- **Executing arbitrary custom model weights:** Running custom neural network graphs directly in the browser is addressed by lower-level APIs like WebNN and WebGPU.
 
 ## User research
 
-[If any user research has been conducted to inform your design choices,
-discuss the process and findings. User research should be more common than it is.]
+Early developer prototypes and community explorations indicate strong demand for low-latency, local semantic decisions that avoid the resource overhead of full text generation and the privacy trade-offs of cloud calls.
+
+- TODO: Document additional user research findings as usability studies and experiments progress.
 
 ## Use cases
 
-[Describe in detail what problems end-users are facing, which this project is trying to solve. A
-common mistake in this section is to take a web developer's or server operator's perspective, which
-makes reviewers worry that the proposal will violate [RFC 8890, The Internet is for End
-Users](https://www.rfc-editor.org/rfc/rfc8890).]
+Keeping decisions local, fast, and probabilistic helps solve several problems end-users face on the web today:
 
-### Use case 1
+### Use case 1: Natural Language to Structured Filters & Semantic Search
 
-### Use case 2
+Users searching trip booking or hotel reservation sites, product catalogs, or local-first apps often express multi-part goals in everyday language (e.g., *"dog-friendly hotel downtown that won't break the bank"* or *"under $50 waterproof jacket"*). Rather than forcing users to manually toggle dozens of checkboxes and dropdowns or sending private queries to a remote server, the application can convert natural-language input directly into its predefined filter controls (`binary` toggles, `categorical` options, and `ordinal` price or rating tiers) and re-rank candidate items on the user's device.
 
-<!-- In your initial explainer, you shouldn't be attached or appear attached to any of the potential
-solutions you describe below this. -->
+### Use case 2: Instant Intent Routing & Command Discovery
 
-## [Potential Solution]
+Users interacting with support portals, settings pages, or application command palettes often struggle to locate the right workflow or tool unless they know the exact terminology the site expects. Sites can offer a means to connect user goals in everyday language (e.g., *"let my coworkers view this file"*) to the right action or resource, while keeping their private input on-device.
 
-[For each related element of the proposed solution - be it an additional JS method, a new object, a new element, a new concept etc., create a section which briefly describes it.]
+### Use case 3: Real-Time Writing Feedback & Pre-Submission Checks
 
-```js
-// Provide example code - not IDL - demonstrating the design of the feature.
+Users filling out forms, filing bug reports, or posting in community forums frequently discover only after submitting (or waiting on a remote check) that their draft is missing key details, violates community guidelines, or accidentally contains personal contact information (PII). Users benefit from instant, private, on-keystroke feedback while they are still writing.
 
-// If this API can be used on its own to address a user need,
-// link it back to one of the scenarios in the goals section.
+### Use case 4: Adaptive Interfaces, Autofill & Accessibility
 
-// If you need to show how to get the feature set up
-// (initialized, or using permissions, etc.), include that too.
-```
+Users navigating information-dense pages, complex web forms, or large collections of tabs and products can experience cognitive overload. Evaluating page content and DOM context locally lets web apps and browser extensions (such as password managers or form-filling assistants) classify non-standard form fields for accurate autofill, group related items, highlight likely next steps for keyboard or switch users, or surface reading aids without sending browsing activity or page structure to a remote server.
 
-[Where necessary, provide links to longer explanations of the relevant pre-existing concepts and API.
-If there is no suitable external documentation, you might like to provide supplementary information as an appendix in this document, and provide an internal link where appropriate.]
+### Common Decision Tasks
 
-[If this is already specced, link to the relevant section of the spec.]
+These user scenarios rely on three question types (`binary`, `categorical`, and `ordinal`) across common decision patterns:
 
-[If spec work is in progress, link to the PR or draft of the spec.]
+| Task Pattern | Question Type | Description | Web Examples |
+| :--- | :--- | :--- | :--- |
+| **Verification & Detection** | `binary` | Check whether input satisfies policy rules, meets adequacy criteria, or contains specific risks. | Verifying a draft or AI response meets guidelines; flagging toxicity, spam, or accidental PII; checking if a policy condition is met. |
+| **Classification & Routing** | `categorical` | Assign content to categories, route user intent to workflows or tools, or extract discrete fields. | Converting search text into predefined trip or catalog filters; routing a request to `billing` or `returns`; classifying form fields for password or address autofill. |
+| **Scoring & Ranking** | `ordinal` | Rate degree or intensity along an ordered rubric to evaluate or rank items. | Scoring customer tone (`calm` to `angry`) or incident severity (`cosmetic` to `critical`); rating response helpfulness (`1`–`5`); ranking candidate results. |
 
-[If you have more potential solutions in mind, add ## Potential Solution 2, 3, etc. sections.]
+## Potential Solution
+
+We are exploring a three-step workflow on `window.DecisionModel`:
+1. **Define a schema** with context and one or more questions (`binary`, `categorical`, or `ordinal`, with annotated `options` for `categorical` and `ordinal` questions), check readiness with `DecisionModel.availability(schema)`, and create a session via `DecisionModel.create(schema)`.
+2. **Pass the input** (such as text or page state) to `model.decide(input)`.
+3. **Receive a structured result** keyed by question `id`, containing the top `label`, option `probabilities`, `expectedScore` (for ordered scales), and `confidence`.
 
 ### How this solution would solve the use cases
 
-[If there are a suite of interacting APIs, show how they work together to solve the use cases described.]
+#### Use case 1: Natural Language to Structured Filters & Semantic Search
 
-#### Use case 1
-
-[Description of the end-user scenario]
+A hotel reservation or trip booking site can convert a user's natural-language search into a set of predefined UI filters (`pet_friendly`, `property_type`, and `price_tier`) in a single local pass—applying high-confidence filters automatically and offering suggested filter chips when the query is ambiguous:
 
 ```js
-// Sample code demonstrating how to use these APIs to address that scenario.
+// 1. Define the filter schema for a hotel search UI
+const schema = {
+  context: "Hotel reservation search filter converter.",
+  expectedInputs: [{ type: "text", languages: ["en"] }],
+  questions: [
+    {
+      id: "pet_friendly",
+      type: "binary",
+      prompt: "Does the traveler require pet-friendly accommodations?"
+    },
+    {
+      id: "property_type",
+      type: "categorical",
+      prompt: "Which property type best matches the traveler's request?",
+      options: [
+        { label: "hotel", description: "Standard hotel, resort, or boutique inn" },
+        { label: "rental", description: "Entire apartment, house, or cabin rental" },
+        { label: "hostel", description: "Shared dormitory or budget hostel" },
+        { label: "any", description: "No specific property type mentioned" }
+      ]
+    },
+    {
+      id: "price_tier",
+      type: "ordinal",
+      prompt: "Rate the target price tier from 1 (budget) to 4 (luxury).",
+      options: [
+        { label: "1", description: "Budget or inexpensive stay" },
+        { label: "2", description: "Moderate or mid-range price" },
+        { label: "3", description: "Upscale or premium property" },
+        { label: "4", description: "Luxury or five-star resort" }
+      ]
+    }
+  ]
+};
+
+const status = await DecisionModel.availability(schema);
+
+if (status === "available" || status === "downloadable") {
+  const model = await DecisionModel.create(schema);
+
+  // 2. Evaluate the user's natural-language query in a single local pass
+  const query = document.querySelector("#search-input").value;
+  // e.g., "dog-friendly hotel downtown that won't break the bank"
+  const result = await model.decide(query);
+
+  // 3. Inspect the result object (keyed by question id)
+  // {
+  //   pet_friendly: {
+  //     id: "pet_friendly", label: "true", probability: 0.98, confidence: 0.96,
+  //     probabilities: [{ label: "true", probability: 0.98 }, { label: "false", probability: 0.02 }]
+  //   },
+  //   property_type: {
+  //     id: "property_type", label: "hotel", confidence: 0.92,
+  //     probabilities: [
+  //       { label: "hotel", probability: 0.94 },
+  //       { label: "rental", probability: 0.03 },
+  //       { label: "hostel", probability: 0.01 },
+  //       { label: "any", probability: 0.02 }
+  //     ]
+  //   },
+  //   price_tier: {
+  //     id: "price_tier", label: "1", expectedScore: 1.24, confidence: 0.88,
+  //     probabilities: [...]
+  //   }
+  // }
+
+  // Apply confident filter selections; show suggested filter chips when ambiguous
+  if (result.pet_friendly.confidence > 0.85) {
+    setPetFilter(result.pet_friendly.label === "true");
+  }
+  if (result.property_type.confidence > 0.85) {
+    setPropertyFilter(result.property_type.label, result.price_tier.expectedScore);
+  } else {
+    showSuggestedFilterChips(result.property_type.probabilities);
+  }
+
+  model.destroy();
+}
 ```
 
-#### Use case 2
+#### Use case 2: Instant Intent Routing & Command Discovery
 
-[etc.]
+An application command palette can match a user's everyday phrasing to available commands without requiring exact keyword matches:
+
+```js
+const actionMatcher = await DecisionModel.create({
+  context: "Document editor command palette",
+  questions: [
+    {
+      id: "command",
+      type: "categorical",
+      prompt: "Which command best fulfills the user's goal?",
+      options: [
+        { label: "export_pdf", description: "Download or save the document as a PDF" },
+        { label: "share_link", description: "Invite collaborators or copy a sharing link" },
+        { label: "archive_doc", description: "Move the document to trash or archive" }
+      ]
+    }
+  ]
+});
+
+const { command } = await actionMatcher.decide("let my coworkers view this file");
+// command -> { id: "command", label: "share_link", confidence: 0.93, probabilities: [...] }
+```
+
+#### Use case 3: Real-Time Writing Feedback & Pre-Submission Checks
+
+A bug tracker or forum form can check a user's draft locally as they type, nudging them if reproduction steps are missing or if sensitive credentials were pasted accidentally:
+
+```js
+const draftChecker = await DecisionModel.create({
+  context: "Bug report submission form pre-check",
+  questions: [
+    {
+      id: "has_repro_steps",
+      type: "binary",
+      prompt: "Does the draft include steps to reproduce the issue?"
+    },
+    {
+      id: "contains_pii",
+      type: "binary",
+      prompt: "Does the draft contain personal contact info, API keys, or passwords?"
+    }
+  ]
+});
+
+const { has_repro_steps, contains_pii } = await draftChecker.decide(draftText);
+if (contains_pii.label === "true" && contains_pii.confidence > 0.8) {
+  showWarning("Please remove personal info or credentials before posting.");
+} else if (has_repro_steps.label === "false" && has_repro_steps.confidence > 0.8) {
+  showHint("Adding reproduction steps will help resolve this issue faster.");
+}
+```
+
+#### Use case 4: Adaptive Interfaces, Autofill & Accessibility
+
+A form assistant or password manager extension can evaluate the text surrounding a non-standard input field locally to determine what credential or data it expects, without sending page DOM structure to a remote server:
+
+```js
+const fieldClassifier = await DecisionModel.create({
+  context: "Form assistant classifying a non-standard input field from surrounding DOM labels",
+  questions: [
+    {
+      id: "field_purpose",
+      type: "categorical",
+      prompt: "What type of user credential or data does this input field expect?",
+      options: [
+        { label: "username", description: "Account email, login ID, or handle" },
+        { label: "current_password", description: "Existing password for signing in" },
+        { label: "new_password", description: "New or updated password being created" },
+        { label: "one_time_code", description: "Two-factor verification or SMS code" },
+        { label: "other", description: "Unrelated input field" }
+      ]
+    }
+  ]
+});
+
+const { field_purpose } = await fieldClassifier.decide(
+  'Label: "Enter the 6-digit security code sent to your phone" | Placeholder: "000000"'
+);
+if (field_purpose.label !== "other" && field_purpose.confidence > 0.85) {
+  offerAutofillSuggestion(inputElement, field_purpose.label);
+}
+```
 
 ## Detailed design discussion
 
-### [Tricky design choice #1]
+### Core Requirements & Option Behavior
 
-[Talk through the tradeoffs in coming to the specific design point you want to make.]
+To make on-device decision models dependable for the web, the design targets several key properties:
+- **Strict Schema Conformance:** Outputs always match one of the developer's supplied `options` with valid numeric scores, avoiding fragile string parsing or out-of-schema values.
+- **Calibrated Confidence & Policy Separation:** Raw model scores are often overconfident. Providing calibrated `probabilities` and a normalized `confidence` signal lets application code decide when to act automatically versus when to ask the user.
+- **Parallel Multi-Question Evaluation:** Grouping multiple questions into one schema lets the runtime encode the input once and answer all questions in parallel, saving latency and battery.
+- **Predictable Option Behavior:**
+  - *Practical Option Limits:* Single-pass evaluation works best with a bounded number of choices per question (e.g., 2–16 options in compact models); larger catalogs can be filtered in stages.
+  - *Graceful Fallbacks & Ambiguity:* Schemas can include catch-all options (like `"other"` or `"none"`). When options overlap or inputs are unclear, scores reflect that uncertainty with lower `confidence`.
+  - *Order Independence:* The order in which options are listed should not bias their scores.
+- **Clear Input & Context Limits:** On-device models have finite context windows. Similar to the [Prompt API](https://github.com/webmachinelearning/prompt-api), developers need ways to check how much capacity a schema and input use, and receive clear errors rather than silent truncation when limits are exceeded.
+- **Built-in AI Platform Alignment:** Session creation and inference should follow established Built-in AI conventions, including `AbortSignal` (`signal`) support for cancellation, `monitor` callbacks for download progress, explicit cleanup via `destroy()`, and requiring transient user activation when `create()` initiates a model download.
 
-```js
-// Illustrated with example code.
-```
+### Naming (`Decision API` / `window.DecisionModel`)
 
-[This may be an open question,
-in which case you should link to any active discussion threads.]
+We welcome feedback on the name *Decision API* and its `window.DecisionModel` entrypoint. Potential alternatives include *Prediction*, *Evaluation*, *Assessor*, *Classification*, as well as whether to incorporate qualifying adjectives such as *Structured* or *Contextual* (e.g., *Structured Prediction API*, *Contextual Evaluation API*) and JS entrypoints.
 
-### [Tricky design choice 2]
+### Result Shape & Uncertainty Controls
 
-[etc.]
+Does returning an object keyed by question `id` best serve developers, or should we also consider array or wrapper shapes? Should optional controls for trading compute effort for higher confidence (e.g., multi-step sampling hints or deeper uncertainty metrics) be exposed for advanced use cases?
+
+### Batching Inputs (`decideBatch`)
+
+Evaluating multiple questions on a single input happens in one pass. For scoring or ranking many inputs against the same schema (such as 50 feed items or open tabs), should `DecisionModel` offer a dedicated `decideBatch(inputs)` method?
+
+### Input & Language Configuration
+
+Using `expectedInputs: [{ type: "text", languages: ["en"] }]` in `availability()` and `create()` aligns with the Prompt API, verifies language coverage upfront, and prepares for future image or audio inputs. Would a simpler shorthand, like `expectedLanguages: ["en"]`, be preferable for common text-only tasks?
+
+### Worker Support
+
+How should `DecisionModel` support background workers (`DedicatedWorker`, `SharedWorker`, `ServiceWorker`) as proposals like [Permissions Policy for Workers](https://github.com/explainers-by-googlers/workers-permissions-policy) progress?
 
 ## Considered alternatives
 
-[This should include as many alternatives as you can,
-from high level architectural decisions down to alternative naming choices.]
+### Brittle Client-Side Heuristics
 
-### [Alternative 1]
+Regular expressions and keyword rules are fast and local, but fail on nuance, phrasing variations, negation, and multilingual text.
 
-[Describe an alternative which was considered,
-and why you decided against it.]
+### Generative Prompt API (`LanguageModel`)
 
-### [Alternative 2]
+Using an on-device generative language model to output JSON or category labels is flexible and well-suited for open-ended writing, chat, and summarization. However, it requires multi-GB models, takes seconds to generate tokens sequentially, consumes significantly more memory and battery when only a discrete choice or score is needed, and is not as directly amenable to producing calibrated option probabilities.
 
-[etc.]
+### Server-Side AI APIs
+
+Sending page or user text to cloud models provides access to large frontier models with zero client download size, but introduces privacy trade-offs, network latency that prevents real-time on-keystroke UI, and recurring server costs.
+
+### Developer-Supplied Model (WebGPU / WebAssembly / WebNN)
+
+Developers can run models today via libraries like Transformers.js and LiteRT.js, potentially paired with [Cross-Origin Storage](https://github.com/WICG/cross-origin-storage). However, unless sites converge on the exact same model checkpoint and quantization, users still face redundant X00MB downloads, and applications lack browser-managed hardware scheduling.
+
+### Fixed-Taxonomy API
+
+Supporting a fixed set of standard taxonomies or questions keeps the API surface tiny, but is too narrow to support app-specific routing, custom verification rules, or domain-specific UI decisions.
 
 ## Security and Privacy Considerations
 
-[Describe any interesting answers you give to the [Security and Privacy Self-Review
-Questionnaire](https://www.w3.org/TR/security-privacy-questionnaire/) and any interesting ways that
-your feature interacts with [Chromium's Web Platform Security
-Guidelines](https://chromium.googlesource.com/chromium/src/+/master/docs/security/web-platform-security-guidelines.md).]
+- **Privacy & No New Cross-Origin Data:** Inference runs locally on the user's device. The API is stateless: inputs are not sent over the network, saved to disk, or used to train models. Because `decide(input)` only evaluates data already available to the calling origin (with no access to cross-origin browsing history or profile state), it does not expose new cross-origin information to the site. Initiating a model download via `create()` requires transient user activation.
+- **Security & User Agency:** User `input` is kept separate from developer `questions` and `options` so untrusted text cannot inject fake choices or alter the schema. Timing and numeric precision should be bounded to mitigate device fingerprinting. Model confidence is not execution authorization: state-changing or high-consequence actions should require explicit user confirmation regardless of confidence score.
+- **Accessibility (a11y):** Sites can use fast local decisions to make interfaces easier to navigate. For example, by matching everyday phrasing or voice commands to page actions, highlighting likely next steps for keyboard users, or offering simpler summaries for dense text.
+- **Internationalization (i18n):** Browsers can verify language support upfront via `expectedInputs` in `availability()` and `create()`, selecting a multilingual model or reporting `"unavailable"` rather than guessing on unsupported languages.
+- **Device & Ecosystem Reach:** Because decision models are much smaller and faster than generative language models, they can run comfortably on a much wider range of consumer devices without straining memory or battery.
+- TODO: Complete the [W3C Security and Privacy Self-Review Questionnaire](https://www.w3.org/TR/security-privacy-questionnaire/) and review interactions with [Chromium's Web Platform Security Guidelines](https://chromium.googlesource.com/chromium/src/+/master/docs/security/web-platform-security-guidelines.md).
 
 ## Stakeholder Feedback / Opposition
 
-[Implementors and other stakeholders may already have publicly stated positions on this work. If you can, list them here with links to evidence as appropriate.]
-
-- [Implementor A] : Positive
-- [Stakeholder B] : No signals
-- [Implementor C] : Negative
-
-[If appropriate, explain the reasons given by other implementors for their concerns.]
+- **Web Developers & Prototype Authors:** Positive interest demonstrated through independent web libraries, extensions, and interactive demos exploring single-pass on-device decision models:
+  - **[Open-Jev (`nico-martin/open-jev`)](https://github.com/nico-martin/open-jev):** Browser TypeScript library for single-pass typed decisions over text, running quantized ONNX decision models (`kev` and `open-jev`) locally via [Transformers.js](https://huggingface.co/docs/transformers.js/en/index) with WebGPU and WebAssembly.
+  - **[System One Interactive Explainer & Jev × WebMCP](https://system-one-explainer.netlify.app/) ([GitHub](https://github.com/sdras/system-one-explainer)):** Interactive guide exploring categorical and ordinal decisions, confidence thresholds, and a Jev × WebMCP case study (with an [extension](https://chromewebstore.google.com/detail/gglnhcbhjfbmcpgccnmolbhejloflgkb) and [test site](https://shopping-webmcp-demo.netlify.app/)) for page tool routing with policy checks.
+  - **[Web AI Studio](https://web-ai.studio/) & [WebAI Extension](https://web-ai.studio/extension) ([Chrome Web Store](https://chromewebstore.google.com/detail/webai-extension/lmjgpcigjcffnphimblhcoccjfefamcp), [GitHub](https://github.com/etiennenoel/web-ai.studio)):** Interactive [playground](https://web-ai.studio/playgrounds/decisions) for testing schemas and probability distributions, plus a [browser extension](https://github.com/etiennenoel/web-ai.studio/tree/master/extension) with a client-side [polyfill](https://github.com/etiennenoel/web-ai.studio/tree/master/extension/projects/content-script/src/polyfill) and [Laya runner](https://github.com/etiennenoel/web-ai.studio/tree/master/extension/projects/laya) executing [`litert-community/laya-LiteRT`](https://huggingface.co/litert-community/laya-LiteRT) models locally.
+- **Browser Implementors & Standards Groups:**
+  - TODO: Gather and link feedback from WebKit, Mozilla, W3C TAG, and Web Machine Learning Community Group discussions.
 
 ## References & acknowledgements
 
-[Your design will change and be informed by many people; acknowledge them in an ongoing way! It helps build community and, as we only get by through the contributions of many, is only fair.]
+### External References & Inspirations
 
-[Unless you have a specific reason not to, these should be in alphabetical order.]
+- **System One Framing & Workflow Design:**
+  - [Introducing System One Models & Jev (TypeSafe AI)](https://typesafe.ai/blog/introducing-system-one-models-and-jev)
+  - [System One: Fast Judgments and Deliberate Checks](https://system-one-explainer.netlify.app/)
+- **Open Decision Models, Checkpoints & Runtimes:**
+  - [Laya: Multilingual Non-Autoregressive System 1 Decision Engine (`NandhaKishorM/laya`)](https://github.com/NandhaKishorM/laya)
+  - [laya-LiteRT: Laya Decision Encoders for LiteRT (`litert-community/laya-LiteRT`)](https://huggingface.co/litert-community/laya-LiteRT)
+  - [Kev: Small Jev-like Decision Models (`jaredpalmer/kev`)](https://github.com/jaredpalmer/kev)
+  - [Open-Jev: Browser-Focused TypeScript Library for Typed Decisions (`nico-martin/open-jev`)](https://github.com/nico-martin/open-jev)
+  - [Web AI Studio](https://web-ai.studio/) & [WebAI Extension (`etiennenoel/web-ai.studio`)](https://github.com/etiennenoel/web-ai.studio)
 
-Many thanks for valuable feedback and advice from:
+### Acknowledgements
 
-- [Person 1]
-- [Person 2]
-- [etc.]
+- TODO: Add acknowledgements as community members and reviewers contribute feedback.
