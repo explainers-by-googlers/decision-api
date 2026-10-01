@@ -1,4 +1,4 @@
-# Explainer for the Decision API
+# Explainer for the Decisions API
 
 This proposal is an early design sketch by the Google Chrome Built-in AI Team to describe the problem below and solicit feedback on the proposed solution. It has not been approved to ship in Chrome.
 
@@ -8,7 +8,7 @@ This proposal is an early design sketch by the Google Chrome Built-in AI Team to
 
 ## Participate
 
-- https://github.com/explainers-by-googlers/decision-api/issues
+- https://github.com/explainers-by-googlers/decisions-api/issues
 
 ## Introduction
 
