@@ -12,7 +12,7 @@ This proposal is an early design sketch by the Google Chrome Built-in AI Team to
 
 ## Introduction
 
-Web applications often need to make fast, structured decisions about unstructured content: *What is this page or message about? Which action matches the user's intent? Does this input meet site guidelines? Which items are most relevant?* Today, developers must choose between brittle keyword heuristics, cloud AI APIs with privacy and latency trade-offs, or heavyweight on-device text generation models (`LanguageModel`) that are slow and resource-intensive for discrete choices.
+Web applications often need to make fast, structured decisions about unstructured content: *What is this page or message about? Which action matches the user's intent? Does this input meet site guidelines? Which items are most relevant?* Today, developers must choose between brittle keyword heuristics, cloud AI APIs with privacy and latency trade-offs, text generation models with high resource usage, or custom model integrations that increase user and developer burden.
 
 This living document explores a potential Web API (`window.DecisionModel`) for fast, type-safe, on-device machine learning assistance with decision-making, evaluation, classification, and ranking. Recent machine learning advances have shown that scoring predefined options directly in a single pass unlocks major gains in speed, reliability, and efficiency:
 
