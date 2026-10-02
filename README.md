@@ -80,7 +80,7 @@ These user scenarios rely on three question types (`boolean`, `choice`, and `sco
 We are exploring a three-step workflow on `window.DecisionModel`:
 1. **Define a schema** with context and one or more questions (`boolean`, `choice`, or `score`, with required `options` for `choice` and optional `options` for `score` defaulting to `"1"`–`"5"`), check readiness with `DecisionModel.availability(schema)`, and create a session via `DecisionModel.create(schema)`.
 2. **Pass the input** (such as text or page state) to `model.decide(input)`.
-3. **Receive a structured result** keyed by question `id`, containing the winning `label`, option `probabilities`, `confidence` (always the winning `label`'s probability, `max(p_i)`), `probability` (populated on `boolean` decisions as `P("true")`), and `expectedScore` (populated on `score` decisions, weighted by parsed numeric option `label`s when all labels in the question are finite numbers, or `1..N` ordinal indices otherwise).
+3. **Receive a structured result** keyed by question `id`, containing the winning `label`, option `probabilities` (keyed by option `label`), `confidence` (always the winning `label`'s probability, `max(p_i)`), and `expectedScore` (populated on `score` decisions, weighted by parsed numeric option `label`s when all labels in the question are finite numbers, or `1..N` ordinal indices otherwise).
 
 ### How this solution would solve the use cases
 
@@ -137,21 +137,21 @@ if (status === "available" || status === "downloadable") {
   // 3. Inspect the result object (keyed by question id)
   // {
   //   pet_friendly: {
-  //     id: "pet_friendly", label: "true", probability: 0.98, confidence: 0.98,
-  //     probabilities: [{ label: "true", probability: 0.98 }, { label: "false", probability: 0.02 }]
+  //     id: "pet_friendly", label: "true", confidence: 0.98,
+  //     probabilities: { true: 0.98, false: 0.02 }
   //   },
   //   property_type: {
   //     id: "property_type", label: "hotel", confidence: 0.94,
-  //     probabilities: [
-  //       { label: "hotel", probability: 0.94 },
-  //       { label: "rental", probability: 0.03 },
-  //       { label: "hostel", probability: 0.01 },
-  //       { label: "any", probability: 0.02 }
-  //     ]
+  //     probabilities: {
+  //       hotel: 0.94,
+  //       rental: 0.03,
+  //       hostel: 0.01,
+  //       any: 0.02
+  //     }
   //   },
   //   price_tier: {
   //     id: "price_tier", label: "1", expectedScore: 1.24, confidence: 0.88,
-  //     probabilities: [...]
+  //     probabilities: { "1": 0.88, "2": 0.04, "3": 0.04, "4": 0.04 }
   //   }
   // }
 
@@ -191,7 +191,7 @@ const actionMatcher = await DecisionModel.create({
 });
 
 const { command } = await actionMatcher.decide("let my coworkers view this file");
-// command -> { id: "command", label: "share_link", confidence: 0.93, probabilities: [...] }
+// command -> { id: "command", label: "share_link", confidence: 0.93, probabilities: { ... } }
 ```
 
 #### Use case 3: Real-Time Writing Feedback & Pre-Submission Checks
