@@ -51,7 +51,7 @@ Keeping decisions local, fast, and probabilistic helps solve several problems en
 
 ### Use case 1: Natural Language to Structured Filters & Semantic Search
 
-Users searching trip booking or hotel reservation sites, product catalogs, or local-first apps often express multi-part goals in everyday language (e.g., *"dog-friendly hotel downtown that won't break the bank"* or *"under $50 waterproof jacket"*). Rather than forcing users to manually toggle dozens of checkboxes and dropdowns or sending private queries to a remote server, the application can convert natural-language input directly into its predefined filter controls (`binary` toggles, `categorical` options, and `ordinal` price or rating tiers) and re-rank candidate items on the user's device.
+Users searching trip booking or hotel reservation sites, product catalogs, or local-first apps often express multi-part goals in everyday language (e.g., *"dog-friendly hotel downtown that won't break the bank"* or *"under $50 waterproof jacket"*). Rather than forcing users to manually toggle dozens of checkboxes and dropdowns or sending private queries to a remote server, the application can convert natural-language input directly into its predefined filter controls (binary toggles, categorical options, and ordinal price or rating tiers) and re-rank candidate items on the user's device.
 
 ### Use case 2: Instant Intent Routing & Command Discovery
 
@@ -67,20 +67,20 @@ Users navigating information-dense pages, complex web forms, or large collection
 
 ### Common Decision Tasks
 
-These user scenarios rely on three question types (`binary`, `categorical`, and `ordinal`) across common decision patterns:
+These user scenarios rely on three question types (`boolean`, `choice`, and `score`) for binary verification, categorical routing, and ordinal scoring:
 
 | Task Pattern | Question Type | Description | Web Examples |
 | :--- | :--- | :--- | :--- |
-| **Verification & Detection** | `binary` | Check whether input satisfies policy rules, meets adequacy criteria, or contains specific risks. | Verifying a draft or AI response meets guidelines; flagging toxicity, spam, or accidental PII; checking if a policy condition is met. |
-| **Classification & Routing** | `categorical` | Assign content to categories, route user intent to workflows or tools, or extract discrete fields. | Converting search text into predefined trip or catalog filters; routing a request to `billing` or `returns`; classifying form fields for password or address autofill. |
-| **Scoring & Ranking** | `ordinal` | Rate degree or intensity along an ordered rubric to evaluate or rank items. | Scoring customer tone (`calm` to `angry`) or incident severity (`cosmetic` to `critical`); rating response helpfulness (`1`–`5`); ranking candidate results. |
+| **Verification & Detection** | `boolean` | Check whether input satisfies binary policy rules, adequacy criteria, or risk checks (`"true"` / `"false"`). | Verifying a draft or AI response meets guidelines; flagging toxicity, spam, or accidental PII; checking if a policy condition is met. |
+| **Classification & Routing** | `choice` | Assign content to categorical options, route user intent to workflows or tools, or extract discrete fields. | Converting search text into predefined trip or catalog filters; routing a request to `billing` or `returns`; classifying form fields for password or address autofill. |
+| **Scoring & Ranking** | `score` | Rate degree or intensity along an ordered rubric to evaluate or rank items (`options` is optional and defaults to `"1"`–`"5"`). | Scoring customer tone (`calm` to `angry`) or incident severity (`cosmetic` to `critical`); rating response helpfulness (`1`–`5`); ranking candidate results. |
 
 ## Potential Solution
 
 We are exploring a three-step workflow on `window.DecisionModel`:
-1. **Define a schema** with context and one or more questions (`binary`, `categorical`, or `ordinal`, with annotated `options` for `categorical` and `ordinal` questions), check readiness with `DecisionModel.availability(schema)`, and create a session via `DecisionModel.create(schema)`.
+1. **Define a schema** with context and one or more questions (`boolean`, `choice`, or `score`, with required `options` for `choice` and optional `options` for `score` defaulting to `"1"`–`"5"`), check readiness with `DecisionModel.availability(schema)`, and create a session via `DecisionModel.create(schema)`.
 2. **Pass the input** (such as text or page state) to `model.decide(input)`.
-3. **Receive a structured result** keyed by question `id`, containing the top `label`, option `probabilities`, `expectedScore` (for ordered scales), and `confidence`.
+3. **Receive a structured result** keyed by question `id`, containing the winning `label`, option `probabilities`, `confidence` (always the winning `label`'s probability, `max(p_i)`), `probability` (populated on `boolean` decisions as `P("true")`), and `expectedScore` (populated on `score` decisions, weighted by parsed numeric option `label`s when all labels in the question are finite numbers, or `1..N` ordinal indices otherwise).
 
 ### How this solution would solve the use cases
 
@@ -96,12 +96,12 @@ const schema = {
   questions: [
     {
       id: "pet_friendly",
-      type: "binary",
+      type: "boolean",
       prompt: "Does the traveler require pet-friendly accommodations?"
     },
     {
       id: "property_type",
-      type: "categorical",
+      type: "choice",
       prompt: "Which property type best matches the traveler's request?",
       options: [
         { label: "hotel", description: "Standard hotel, resort, or boutique inn" },
@@ -112,7 +112,7 @@ const schema = {
     },
     {
       id: "price_tier",
-      type: "ordinal",
+      type: "score",
       prompt: "Rate the target price tier from 1 (budget) to 4 (luxury).",
       options: [
         { label: "1", description: "Budget or inexpensive stay" },
@@ -137,11 +137,11 @@ if (status === "available" || status === "downloadable") {
   // 3. Inspect the result object (keyed by question id)
   // {
   //   pet_friendly: {
-  //     id: "pet_friendly", label: "true", probability: 0.98, confidence: 0.96,
+  //     id: "pet_friendly", label: "true", probability: 0.98, confidence: 0.98,
   //     probabilities: [{ label: "true", probability: 0.98 }, { label: "false", probability: 0.02 }]
   //   },
   //   property_type: {
-  //     id: "property_type", label: "hotel", confidence: 0.92,
+  //     id: "property_type", label: "hotel", confidence: 0.94,
   //     probabilities: [
   //       { label: "hotel", probability: 0.94 },
   //       { label: "rental", probability: 0.03 },
@@ -179,7 +179,7 @@ const actionMatcher = await DecisionModel.create({
   questions: [
     {
       id: "command",
-      type: "categorical",
+      type: "choice",
       prompt: "Which command best fulfills the user's goal?",
       options: [
         { label: "export_pdf", description: "Download or save the document as a PDF" },
@@ -204,12 +204,12 @@ const draftChecker = await DecisionModel.create({
   questions: [
     {
       id: "has_repro_steps",
-      type: "binary",
+      type: "boolean",
       prompt: "Does the draft include steps to reproduce the issue?"
     },
     {
       id: "contains_pii",
-      type: "binary",
+      type: "boolean",
       prompt: "Does the draft contain personal contact info, API keys, or passwords?"
     }
   ]
@@ -233,7 +233,7 @@ const fieldClassifier = await DecisionModel.create({
   questions: [
     {
       id: "field_purpose",
-      type: "categorical",
+      type: "choice",
       prompt: "What type of user credential or data does this input field expect?",
       options: [
         { label: "username", description: "Account email, login ID, or handle" },
@@ -267,7 +267,7 @@ To make on-device decision models dependable for the web, the design targets sev
   - *Graceful Fallbacks & Ambiguity:* Schemas can include catch-all options (like `"other"` or `"none"`). When options overlap or inputs are unclear, scores reflect that uncertainty with lower `confidence`.
   - *Order Independence:* The order in which options are listed should not bias their scores.
 - **Clear Input & Context Limits:** On-device models have finite context windows. Similar to the [Prompt API](https://github.com/webmachinelearning/prompt-api), developers need ways to check how much capacity a schema and input use, and receive clear errors rather than silent truncation when limits are exceeded.
-- **Built-in AI Platform Alignment:** Session creation and inference should follow established Built-in AI conventions, including `AbortSignal` (`signal`) support for cancellation, `monitor` callbacks for download progress, explicit cleanup via `destroy()`, and requiring transient user activation when `create()` initiates a model download.
+- **Built-in AI Platform Alignment:** Session creation and inference should follow established Built-in AI conventions, including `AbortSignal` (`signal`) support for cancellation, `monitor` callbacks for download progress, explicit cleanup via `destroy()`, requiring transient user activation when `create()` initiates a model download, and `Permissions-Policy` integration (the DevTrial prototype reuses the `"language-model"` policy feature).
 
 ### Naming (`Decision API` / `window.DecisionModel`)
 
